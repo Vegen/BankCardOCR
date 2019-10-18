@@ -8,8 +8,8 @@ object BandCardOcrUtil {
     }
 
     /**
-     * 三种滤波模糊
+     * 银行卡识别
      */
-    external fun test(bitmap: Bitmap): Int
+    external fun bandCardOcr(bitmap: Bitmap): Int
 
 }

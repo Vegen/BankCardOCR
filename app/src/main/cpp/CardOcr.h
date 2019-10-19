@@ -34,7 +34,7 @@ namespace ocr {
      * @param numbers 存放卡号每个数字的集合
      * @return 是否成功
      */
-    int find_card_numbers(const Mat &mat, vector<Mat> numbers);
+    int find_card_numbers(const Mat &mat, vector<Mat> &numbers);
 
     /**
      * 字符串进行粘连处理

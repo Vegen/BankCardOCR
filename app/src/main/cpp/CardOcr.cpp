@@ -1,9 +1,11 @@
 //
 // Created by huweijian on 2019/10/17.
 //
-
+#include <android/log.h>
 #include "CardOcr.h"
 #include <vector>
+#define TAG "tagtag"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__)
 
 using namespace std;
 using namespace cv;
@@ -41,10 +43,11 @@ int ocr::find_card_area(const Mat &mat, Rect &card_area) {
     // 4. 合并 Mat
     Mat gradeMat;
     addWeighted(abs_grade_x, 0.5, abs_grade_y, 0.5, 0, gradeMat);
-
+    //imwrite("/storage/emulated/0/ocr/find_card_area_gradeMat.jpg", gradeMat);
     // 5. 转灰度
     Mat grayMat;
-    cvtColor(gradeMat, gradeMat, COLOR_RGBA2BGRA);
+    cvtColor(gradeMat, grayMat, COLOR_BGRA2GRAY);
+    //imwrite("/storage/emulated/0/ocr/find_card_area_grayMat.jpg", grayMat);
 
     // 6. 二值化
     // threshold( InputArray src, OutputArray dst, double thresh, double maxval, int type )
@@ -55,6 +58,8 @@ int ocr::find_card_area(const Mat &mat, Rect &card_area) {
     Mat binaryMat;
     threshold(grayMat, binaryMat, 40, 255, THRESH_BINARY);
 
+    //imwrite("/storage/emulated/0/ocr/find_card_area_binaryMat.jpg", binaryMat);
+
     // 7. 从二值图像中检索轮廓
     // findContours( InputOutputArray image, OutputArrayOfArrays contours, int mode, int method, Point offset = Point())
     // contours：双重向量，向量内每个元素保存了一组由连续的 Point 点构成的点的集合的向量，每一组Point点集就是一个轮廓
@@ -62,18 +67,20 @@ int ocr::find_card_area(const Mat &mat, Rect &card_area) {
     // method：定义轮廓的近似方法，其中 CHAIN_APPROX_SIMPLE 表示 仅保存轮廓的拐点信息，把所有轮廓拐点处的点保存入contours 向量内，拐点与拐点之间直线段上的信息点不予保留
     vector<vector<Point> > contours;
     findContours(binaryMat, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-
+    LOGE("find_card_area contours.size():%d", contours.size());
     // 8. 从集合中找合适的轮廓
     for (int i = 0; i < contours.size(); i++) {
         // boundingRect 函数计算并返回指定点集或非零像素的灰度图像
         Rect rect = boundingRect(contours[i]);
-        if (rect.width > mat.cols / 2 && rect.width != mat.cols && rect.height > mat.rows / 2) {
+        //LOGE("从集合中找合适的轮廓 i=%d  rect.width=%d  mat.cols=%d", i, rect.width, mat.cols);
+        if (rect.width > mat.cols / 2 /*&& rect.width != mat.cols*/ && rect.height > mat.rows / 2) {
             // 银行卡区域的宽高必须大于图片的一半
+            LOGE("find_card_area 哈哈哈，找到啦");
             card_area = rect;
             break;
         }
     }
-
+    //LOGE("card_area h:%d", card_area.height);
     // 9. 释放资源
     blurMat.release();
     grade_x.release();
@@ -84,7 +91,10 @@ int ocr::find_card_area(const Mat &mat, Rect &card_area) {
     binaryMat.release();
 
     // 没有找到合适的轮廓 返回失败错误码
-    if (card_area.empty()) return -1;
+    if (card_area.empty()) {
+        LOGE("find_card_area 啊啊啊，找不到");
+        return -1;
+    }
 
     return 0;
 }
@@ -113,7 +123,7 @@ int ocr::find_card_number_area(const Mat &mat, Rect &card_area) {
  * @param numbers 存放卡号每个数字的集合
  * @return 是否成功
  */
-int ocr::find_card_numbers(const Mat &mat, vector<Mat> numbers) {
+int ocr::find_card_numbers(const Mat &mat, vector<Mat> &numbers) {
     // 1. 转灰度图
     Mat grayMat;
     cvtColor(mat, grayMat, COLOR_BGRA2GRAY);
@@ -144,6 +154,8 @@ int ocr::find_card_numbers(const Mat &mat, vector<Mat> numbers) {
     // 5. 从二值图像中检索轮廓，黑色的背景，白色的数字，可以检测出噪点
     vector<vector<Point> > contours;
     findContours(binaryNotMat, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    LOGE("find_card_numbers 1 contours.size():%d", contours.size());
 
     // 6. 将高度小于我们设定的最小值的轮廓区域过滤掉
     int mat_area = mat.rows * mat.cols;
@@ -183,17 +195,16 @@ int ocr::find_card_numbers(const Mat &mat, vector<Mat> numbers) {
     }
 
     // 10. 对矩形轮廓集合进行排序
-    // todo 冒泡排序
-    /*for (int i = 0; i < contours.size() - 1; ++i) {
+    // 冒泡排序
+    LOGE("contours.size()=%d", contours.size());
+    if (contours.size() <= 0) return -1;
+    for (int i = 0; i < contours.size() - 1; ++i) {
         for (int j = 0; j < contours.size() - i - 1; ++j) {
             if (rects[j].x > rects[j + 1].x) {
-                *//*Rect temp = rects[j + 1];
-                rects[j + 1] = rects[j];
-                rects[j] = temp;*//*
-                //swap(rects[j], rects[j + 1]);
+                swap(rects[j], rects[j + 1]);
             }
         }
-    }*/
+    }
 
     // 12. 裁剪出单个数字，保存数字
     numbers.clear();
@@ -212,12 +223,14 @@ int ocr::find_card_numbers(const Mat &mat, vector<Mat> numbers) {
             Mat number(contoursMat, rects[i]);
             numbers.push_back(number);
             // 保存数字图片
-            //char name[50];
-            //sprintf(name, "/storage/emulated/0/ocr/card_number_%d.jpg", i);
-            //imwrite(name, number);
+            LOGE("保存数字图片:%d", i);
+            char name[50];
+            sprintf(name, "/storage/emulated/0/CardOCR/number_%d.jpg", i);
+            imwrite(name, number);
         }
     }
 
+    LOGE("numbers.size:%d", numbers.size());
     // 释放资源
     grayMat.release();
     binaryMat.release();

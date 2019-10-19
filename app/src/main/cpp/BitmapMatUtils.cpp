@@ -4,6 +4,10 @@
 
 #include "BitmapMatUtils.h"
 #include <android/bitmap.h>
+#include <android/log.h>
+#define TAG "tagtag"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__)
+
 
 int BitmapMatUtils::bitmap2mat(JNIEnv *env, jobject bitmap, Mat &mat) {
     // 1. 锁定画布
@@ -32,3 +36,39 @@ int BitmapMatUtils::bitmap2mat(JNIEnv *env, jobject bitmap, Mat &mat) {
 
     return 0;
 };
+
+int BitmapMatUtils::mat2bitmap(JNIEnv *env, jobject bitmap, Mat &mat) {
+    // 1. 获取 bitmap 信息
+    AndroidBitmapInfo info;
+    void *pixels;
+    AndroidBitmap_getInfo(env, bitmap, &info);
+
+    // 锁定 Bitmap 画布
+    AndroidBitmap_lockPixels(env, bitmap, &pixels);
+    LOGE("info.format=%d mat.type()=%d", info.format, mat.type());
+    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {// C4
+        Mat temp(info.height, info.width, CV_8UC4, pixels);
+        if (mat.type() == CV_8UC4) {
+            mat.copyTo(temp);
+        } else if (mat.type() == CV_8UC2) {
+            cvtColor(mat, temp, COLOR_BGR5652BGRA);
+        } else if (mat.type() == CV_8UC1) {// 灰度 mat
+            cvtColor(mat, temp, COLOR_GRAY2BGRA);
+        }
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {// C2
+        Mat temp(info.height, info.width, CV_8UC2, pixels);
+        if (mat.type() == CV_8UC4) {
+            cvtColor(mat, temp, COLOR_BGRA2BGR565);
+        } else if (mat.type() == CV_8UC2) {
+            mat.copyTo(temp);
+
+        } else if (mat.type() == CV_8UC1) {// 灰度 mat
+            cvtColor(mat, temp, COLOR_GRAY2BGR565);
+        }
+    }
+    // todo 其他要自己去转
+
+    // 解锁 Bitmap 画布
+    AndroidBitmap_unlockPixels(env, bitmap);
+    return 0;
+}
